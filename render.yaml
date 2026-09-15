@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: canvas-mcp
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start:http
+    envVars:
+      - key: CANVAS_API_TOKEN
+        sync: false
+      - key: CANVAS_BASE_URL
+        sync: false
+      - key: MCP_AUTH_TOKEN
+        sync: false
