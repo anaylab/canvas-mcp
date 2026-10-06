@@ -54,10 +54,20 @@ async function main(): Promise<void> {
 
   const app = express();
   app.use(express.json());
+  app.use((_req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+    next();
+  });
 
   const authToken = process.env.MCP_AUTH_TOKEN as string;
 
-  app.post('/mcp', async (req, res) => {
+  app.options('/mcp', (_req, res) => {
+    res.status(204).end();
+  });
+
+  app.all('/mcp', async (req, res) => {
     const auth = req.header('authorization') || '';
     const provided = auth.startsWith('Bearer ') ? auth.slice(7) : '';
     if (provided !== authToken) {
