@@ -63,11 +63,7 @@ This exposes:
 - `POST/GET/DELETE /mcp` (MCP transport endpoint)
 - `GET /health` (health check)
 
-Every `/mcp` request must include:
-
-```http
-Authorization: ******
-```
+Every `/mcp` request must include an `Authorization` header using your `MCP_AUTH_TOKEN` in bearer-token format.
 
 ## Available student tools
 
@@ -82,4 +78,3 @@ Authorization: ******
 - `get_overdue_assignments`
 - `get_all_upcoming_work`
 - `search_course_content`
-
