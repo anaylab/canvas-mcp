@@ -62,6 +62,7 @@ Any other MCP client that supports stdio works the same way. You can also run `n
 | Modules | `list_modules`, `list_announcements` |
 | Discussions | `list_discussions`, `get_discussion_entries`, `post_discussion_entry`, `reply_to_discussion` |
 | Submissions | `get_submission`, `submit_assignment`, `upload_file` |
+| Planner | `get_todo`, `get_missing_submissions`, `get_grades`, `list_calendar_events`, `list_pages`, `get_page`, `list_files` |
 
 **Note:** `post_discussion_entry`, `reply_to_discussion`, `submit_assignment` and `upload_file` change data in Canvas as you. Review what your assistant is about to do before approving those calls, and follow your school's academic integrity policy.
 
@@ -71,6 +72,8 @@ Any other MCP client that supports stdio works the same way. You can also run `n
 
 This mode is experimental. If you host it, you are exposing a service that holds your Canvas token and can act on your account:
 
+- The bearer token is compared in constant time (`crypto.timingSafeEqual` on SHA-256 digests).
+- Requests are rate limited to 120 per minute per IP (HTTP 429 when exceeded). `GET` and `DELETE` on `/mcp` return 405.
 - Serve it over HTTPS only.
 - Use a long random `MCP_AUTH_TOKEN`.
 - Don't share the URL or token.

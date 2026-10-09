@@ -8,12 +8,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Import tool registration functions
-import { registerCourseTools } from './tools/courses.js';
-import { registerAssignmentTools } from './tools/assignments.js';
-import { registerSubmissionTools } from './tools/submissions.js';
-import { registerModuleTools } from './tools/modules.js';
-import { registerDiscussionTools } from './tools/discussions.js';
-import { registerSearchTools } from './tools/search.js';
+import { registerAllTools, SERVER_NAME, SERVER_VERSION } from './register.js';
 
 // Validate required environment variables
 function validateEnvironment(): void {
@@ -42,17 +37,12 @@ async function main(): Promise<void> {
 
   // Create the MCP server
   const server = new McpServer({
-    name: 'canvas-lms',
-    version: '1.0.0',
+    name: SERVER_NAME,
+    version: SERVER_VERSION,
   });
 
   // Register all tools
-  registerCourseTools(server);
-  registerAssignmentTools(server);
-  registerSubmissionTools(server);
-  registerModuleTools(server);
-  registerDiscussionTools(server);
-  registerSearchTools(server);
+  registerAllTools(server);
 
   // Create stdio transport and connect
   const transport = new StdioServerTransport();

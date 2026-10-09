@@ -22,12 +22,41 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-import { registerCourseTools } from './tools/courses.js';
-import { registerAssignmentTools } from './tools/assignments.js';
-import { registerSubmissionTools } from './tools/submissions.js';
-import { registerModuleTools } from './tools/modules.js';
-import { registerDiscussionTools } from './tools/discussions.js';
-import { registerSearchTools } from './tools/search.js';
+import { createHash, timingSafeEqual } from 'node:crypto';
+import type { Request, Response, NextFunction } from 'express';
+import { registerAllTools, SERVER_NAME, SERVER_VERSION } from './register.js';
+
+const RATE_LIMIT_MAX = 120;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const hits = new Map<string, { count: number; resetAt: number }>();
+
+function rateLimit(req: Request, res: Response, next: NextFunction): void {
+  const now = Date.now();
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  let entry = hits.get(ip);
+  if (!entry || entry.resetAt <= now) {
+    entry = { count: 0, resetAt: now + RATE_LIMIT_WINDOW_MS };
+    hits.set(ip, entry);
+  }
+  entry.count++;
+  if (entry.count > RATE_LIMIT_MAX) {
+    res.setHeader('Retry-After', String(Math.ceil((entry.resetAt - now) / 1000)));
+    res.status(429).json({ error: 'too_many_requests' });
+    return;
+  }
+  next();
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, e] of hits) if (e.resetAt <= now) hits.delete(ip);
+}, RATE_LIMIT_WINDOW_MS).unref();
+
+function tokensMatch(provided: string, expected: string): boolean {
+  const a = createHash('sha256').update(provided).digest();
+  const b = createHash('sha256').update(expected).digest();
+  return timingSafeEqual(a, b);
+}
 
 function validateEnvironment(): void {
   const requiredVars = ['CANVAS_API_TOKEN', 'CANVAS_BASE_URL', 'MCP_AUTH_TOKEN'];
@@ -39,13 +68,8 @@ function validateEnvironment(): void {
 }
 
 function buildServer(): McpServer {
-  const server = new McpServer({ name: 'canvas-lms', version: '1.0.0' });
-  registerCourseTools(server);
-  registerAssignmentTools(server);
-  registerSubmissionTools(server);
-  registerModuleTools(server);
-  registerDiscussionTools(server);
-  registerSearchTools(server);
+  const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
+  registerAllTools(server);
   return server;
 }
 
@@ -57,10 +81,19 @@ async function main(): Promise<void> {
 
   const authToken = process.env.MCP_AUTH_TOKEN as string;
 
+  app.use(rateLimit);
+
+  const methodNotAllowed = (_req: Request, res: Response) => {
+    res.setHeader('Allow', 'POST');
+    res.status(405).json({ error: 'method_not_allowed' });
+  };
+  app.get('/mcp', methodNotAllowed);
+  app.delete('/mcp', methodNotAllowed);
+
   app.post('/mcp', async (req, res) => {
     const auth = req.header('authorization') || '';
     const provided = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-    if (provided !== authToken) {
+    if (!tokensMatch(provided, authToken)) {
       res.status(401).json({ error: 'unauthorized' });
       return;
     }

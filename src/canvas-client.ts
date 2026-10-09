@@ -14,6 +14,13 @@ import type {
   ListAnnouncementsParams,
   SubmitAssignmentParams,
   SubmissionType,
+  TodoItem,
+  MissingSubmission,
+  CourseWithEnrollments,
+  CalendarEvent,
+  ListCalendarEventsParams,
+  CoursePage,
+  CourseFile,
 } from './types/canvas.js';
 
 interface CanvasClientConfig {
@@ -138,9 +145,9 @@ export class CanvasClient {
     courseId: number,
     params: ListAssignmentsParams = {}
   ): Promise<Assignment[]> {
-    const query = this.buildQueryString(params);
-    return this.request<Assignment[]>(
-      `/courses/${courseId}/assignments${query}`
+    return this.requestAllPages<Assignment>(
+      `/courses/${courseId}/assignments`,
+      params
     );
   }
 
@@ -270,8 +277,7 @@ export class CanvasClient {
     courseId: number,
     params: ListModulesParams = {}
   ): Promise<Module[]> {
-    const query = this.buildQueryString(params);
-    return this.request<Module[]>(`/courses/${courseId}/modules${query}`);
+    return this.requestAllPages<Module>(`/courses/${courseId}/modules`, params);
   }
 
   async getModule(
@@ -290,9 +296,9 @@ export class CanvasClient {
     moduleId: number,
     include?: string[]
   ): Promise<ModuleItem[]> {
-    const query = include ? this.buildQueryString({ include }) : '';
-    return this.request<ModuleItem[]>(
-      `/courses/${courseId}/modules/${moduleId}/items${query}`
+    return this.requestAllPages<ModuleItem>(
+      `/courses/${courseId}/modules/${moduleId}/items`,
+      include ? { include } : {}
     );
   }
 
@@ -301,8 +307,7 @@ export class CanvasClient {
   async listAnnouncements(
     params: ListAnnouncementsParams
   ): Promise<Announcement[]> {
-    const query = this.buildQueryString(params);
-    return this.request<Announcement[]>(`/announcements${query}`);
+    return this.requestAllPages<Announcement>('/announcements', params);
   }
 
   // ==================== DISCUSSIONS ====================
@@ -311,9 +316,9 @@ export class CanvasClient {
     courseId: number,
     orderBy?: 'position' | 'recent_activity' | 'title'
   ): Promise<DiscussionTopic[]> {
-    const query = orderBy ? this.buildQueryString({ order_by: orderBy }) : '';
-    return this.request<DiscussionTopic[]>(
-      `/courses/${courseId}/discussion_topics${query}`
+    return this.requestAllPages<DiscussionTopic>(
+      `/courses/${courseId}/discussion_topics`,
+      orderBy ? { order_by: orderBy } : {}
     );
   }
 
@@ -330,7 +335,7 @@ export class CanvasClient {
     courseId: number,
     topicId: number
   ): Promise<DiscussionEntry[]> {
-    return this.request<DiscussionEntry[]>(
+    return this.requestAllPages<DiscussionEntry>(
       `/courses/${courseId}/discussion_topics/${topicId}/entries`
     );
   }
@@ -437,6 +442,45 @@ export class CanvasClient {
       const dueDate = new Date(a.due_at);
       return dueDate >= startDate && dueDate <= endDate;
     });
+  }
+
+  // ==================== PLANNER ====================
+
+  async getTodo(): Promise<TodoItem[]> {
+    return this.requestAllPages<TodoItem>('/users/self/todo');
+  }
+
+  async getMissingSubmissions(): Promise<MissingSubmission[]> {
+    return this.requestAllPages<MissingSubmission>('/users/self/missing_submissions', {
+      include: ['course'],
+    });
+  }
+
+  async getCourseGrades(): Promise<CourseWithEnrollments[]> {
+    return this.requestAllPages<CourseWithEnrollments>('/courses', {
+      include: ['total_scores'],
+      enrollment_state: 'active',
+    });
+  }
+
+  async listCalendarEvents(
+    params: ListCalendarEventsParams = {}
+  ): Promise<CalendarEvent[]> {
+    return this.requestAllPages<CalendarEvent>('/calendar_events', params);
+  }
+
+  async listPages(courseId: number): Promise<CoursePage[]> {
+    return this.requestAllPages<CoursePage>(`/courses/${courseId}/pages`);
+  }
+
+  async getPage(courseId: number, pageUrl: string): Promise<CoursePage> {
+    return this.request<CoursePage>(
+      `/courses/${courseId}/pages/${encodeURIComponent(pageUrl)}`
+    );
+  }
+
+  async listFiles(courseId: number): Promise<CourseFile[]> {
+    return this.requestAllPages<CourseFile>(`/courses/${courseId}/files`);
   }
 
   // ==================== USER INFO ====================

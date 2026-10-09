@@ -245,10 +245,25 @@ export function registerSearchTools(server: McpServer) {
           };
         }> = [];
 
-        for (const course of courses) {
-          try {
-            const assignments = await client.getUpcomingAssignments(course.id, days_ahead);
-            
+        const failedCourses: Array<{ course_id: number; course_name: string; error: string }> = [];
+
+        const settled = await Promise.allSettled(
+          courses.map((course) => client.getUpcomingAssignments(course.id, days_ahead))
+        );
+
+        settled.forEach((result, i) => {
+          const course = courses[i];
+          if (result.status === 'rejected') {
+            failedCourses.push({
+              course_id: course.id,
+              course_name: course.name,
+              error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+            });
+            return;
+          }
+          {
+            const assignments = result.value;
+
             for (const a of assignments) {
               allAssignments.push({
                 course_id: course.id,
@@ -265,11 +280,8 @@ export function registerSearchTools(server: McpServer) {
                 },
               });
             }
-          } catch {
-            // Skip courses where we can't fetch assignments
-            continue;
           }
-        }
+        });
 
         // Sort by due date
         allAssignments.sort((a, b) => {
@@ -285,6 +297,7 @@ export function registerSearchTools(server: McpServer) {
               looking_ahead_days: days_ahead,
               total_count: allAssignments.length,
               courses_checked: courses.length,
+              failed_courses: failedCourses,
               assignments: allAssignments,
             }, null, 2),
           }],
