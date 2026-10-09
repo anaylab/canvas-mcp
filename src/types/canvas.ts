@@ -385,3 +385,78 @@ export interface ListAnnouncementsParams {
   active_only?: boolean;
   latest_only?: boolean;
 }
+
+// ==================== PLANNER TYPES ====================
+
+export interface TodoItem {
+  type: string;
+  assignment?: Assignment;
+  course_id?: number;
+  context_type?: string;
+  context_name?: string;
+  html_url?: string;
+  ignore?: string;
+  ignore_permanently?: string;
+  needs_grading_count?: number;
+}
+
+export interface MissingSubmission extends Assignment {
+  course?: Course;
+}
+
+export interface CourseEnrollmentScore {
+  type?: string;
+  enrollment_state?: string;
+  computed_current_score?: number | null;
+  computed_current_grade?: string | null;
+  computed_final_score?: number | null;
+  computed_final_grade?: string | null;
+}
+
+export interface CourseWithEnrollments extends Omit<Course, 'enrollments'> {
+  enrollments?: CourseEnrollmentScore[];
+}
+
+export interface CalendarEvent {
+  id: number | string;
+  title: string;
+  start_at: string | null;
+  end_at: string | null;
+  description?: string | null;
+  location_name?: string | null;
+  context_code?: string;
+  context_name?: string;
+  all_day?: boolean;
+  type?: string;
+  html_url?: string;
+  assignment?: Assignment;
+}
+
+export interface ListCalendarEventsParams {
+  start_date?: string;
+  end_date?: string;
+  type?: 'event' | 'assignment';
+  context_codes?: string[];
+}
+
+export interface CoursePage {
+  page_id: number;
+  url: string;
+  title: string;
+  created_at?: string;
+  updated_at?: string;
+  published?: boolean;
+  front_page?: boolean;
+  html_url?: string;
+  body?: string;
+}
+
+export interface CourseFile {
+  id: number;
+  display_name: string;
+  filename?: string;
+  size: number;
+  'content-type': string;
+  url: string;
+  updated_at: string;
+}
