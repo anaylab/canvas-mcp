@@ -1,14 +1,15 @@
+# Render Blueprint: deploys your own private canvas-mcp HTTP server.
+# One deployment = one person's Canvas account. Do not share the URL or token.
 services:
   - type: web
     name: canvas-mcp
-    runtime: node
+    runtime: docker
     plan: free
-    buildCommand: npm install && npm run build
-    startCommand: npm run start:http
+    healthCheckPath: /health
     envVars:
-      - key: CANVAS_API_TOKEN
+      - key: CANVAS_API_TOKEN   # paste your Canvas access token when prompted
         sync: false
-      - key: CANVAS_BASE_URL
+      - key: CANVAS_BASE_URL    # e.g. https://yourschool.instructure.com
         sync: false
-      - key: MCP_AUTH_TOKEN
-        sync: false
+      - key: MCP_AUTH_TOKEN     # generated for you; copy it from the Render dashboard
+        generateValue: true

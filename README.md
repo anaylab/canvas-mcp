@@ -148,18 +148,15 @@ Your token stays on your machine (in the client config) and is only ever sent to
 | `read_file` says "Not a text file" or "needs Node 22+" | Text files and PDFs are read (PDF text needs Node 22+; scanned PDFs have no text). Other binaries like slides return a download link |
 | Data looks stale | Responses are cached for 60 s. Set `CANVAS_CACHE_TTL_SECONDS=0` to disable, or ask again in a minute |
 
-## HTTP mode (experimental)
+## Host it in the cloud, free
 
-`npm run start:http` serves the MCP endpoint at `/mcp` and a health check at `/health`, for remote clients. Requests need an `Authorization: Bearer <MCP_AUTH_TOKEN>` header.
+Want to reach Canvas from a phone or a web-based MCP client? Deploy **your own** copy to a free tier. One deployment holds one person's token, so nobody has to trust anyone else with theirs.
 
-This mode is experimental. If you host it, you are exposing a service that holds your Canvas token and can act on your account:
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/anaylab/canvas-mcp)
 
-- Serve it over HTTPS only.
-- Use a long random `MCP_AUTH_TOKEN`.
-- Don't share the URL or token.
-- Many hosted connector UIs expect OAuth rather than a static bearer token, so compatibility isn't guaranteed.
+The [hosting guide](docs/HOSTING.md) covers Render and Google Cloud Run, how to connect Claude Code and other clients, and what the free tiers cost you (for example, Render sleeps when idle and takes about a minute to wake). `npm run start:http` serves `/mcp` and `/health`, and requires `Authorization: Bearer <MCP_AUTH_TOKEN>`.
 
-`render.yaml` is provided as a starting point for deploying to Render.
+**Limits to know about:** Claude Desktop and claude.ai connectors expect OAuth, which isn't supported yet, so use the local setup there. A shared instance for many people is intentionally not offered; see the guide for why. HTTP mode is not yet deployed-and-verified on a real host by the maintainers.
 
 ## Security
 
@@ -173,7 +170,7 @@ This mode is experimental. If you host it, you are exposing a service that holds
 npm run dev     # TypeScript watch mode
 npm run build   # compile to dist/
 npm run demo    # fake Canvas + ready-to-paste client config
-npm test        # build + unit, end-to-end and demo-data tests
+npm test        # build + unit, end-to-end, HTTP and demo-data tests
 ```
 
 The test suite runs every tool against the demo data, so adding a tool means adding a route to `src/demo/fake-canvas.ts` and a line to `test/demo.test.mjs`. See [CONTRIBUTING.md](CONTRIBUTING.md).
