@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getCanvasClient } from '../canvas-client.js';
+import { htmlToText } from './util.js';
 
 export function registerDiscussionTools(server: McpServer) {
   const client = getCanvasClient();
@@ -20,7 +21,7 @@ export function registerDiscussionTools(server: McpServer) {
         const formattedTopics = topics.map(topic => ({
           id: topic.id,
           title: topic.title,
-          message: topic.message,
+          message: htmlToText(topic.message),
           posted_at: topic.posted_at,
           last_reply_at: topic.last_reply_at,
           author: topic.user_name,
@@ -72,7 +73,7 @@ export function registerDiscussionTools(server: McpServer) {
           topic: {
             id: topic.id,
             title: topic.title,
-            message: topic.message,
+            message: htmlToText(topic.message),
             author: topic.user_name,
             posted_at: topic.posted_at,
             require_initial_post: topic.require_initial_post,
@@ -80,13 +81,13 @@ export function registerDiscussionTools(server: McpServer) {
           entries: entries.map(entry => ({
             id: entry.id,
             user_name: entry.user_name,
-            message: entry.message,
+            message: htmlToText(entry.message),
             created_at: entry.created_at,
             read_state: entry.read_state,
             replies: entry.recent_replies?.map(reply => ({
               id: reply.id,
               user_name: reply.user_name,
-              message: reply.message,
+              message: htmlToText(reply.message),
               created_at: reply.created_at,
             })),
             has_more_replies: entry.has_more_replies,

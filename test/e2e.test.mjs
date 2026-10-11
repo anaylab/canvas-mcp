@@ -15,7 +15,7 @@ const routes = {
   'GET /api/v1/courses/7/pages/syllabus': () => ({ title: 'Syllabus', body: '<h1>Hi</h1><p>Week&nbsp;1 &amp; 2</p><script>x()</script>' }),
   'GET /api/v1/courses/7/files': () => [{ id: 9, display_name: 'notes.txt', 'content-type': 'text/plain', size: 5 }],
   'GET /api/v1/files/9': () => ({ display_name: 'notes.txt', 'content-type': 'text/plain', size: 5, url: `${base}/dl/9` }),
-  'GET /api/v1/files/10': () => ({ display_name: 'a.pdf', 'content-type': 'application/pdf', size: 5, url: `${base}/dl/10` }),
+  'GET /api/v1/files/10': () => ({ display_name: 'a.png', 'content-type': 'image/png', size: 5, url: `${base}/dl/10` }),
   'GET /dl/9': () => 'hello',
   'GET /api/v1/courses/7/quizzes': () => [{ id: 3, title: 'Quiz 1', question_count: 5 }],
   'GET /api/v1/conversations': () => [{ id: 4, subject: 'Hi', participants: [{ name: 'Prof' }], workflow_state: 'unread' }],
@@ -26,7 +26,7 @@ const routes = {
 before(async () => {
   server = http.createServer((req, res) => {
     const path = req.url.split('?')[0];
-    requests.push({ key: `${req.method} ${path}`, auth: req.headers.authorization });
+    requests.push({ key: `${req.method} ${path}`, auth: req.headers.authorization, query: req.url.split('?')[1] ?? '' });
     const h = routes[`${req.method} ${path}`];
     const out = h?.();
     if (out === undefined || out === null) {
@@ -83,6 +83,12 @@ test('read_file returns text content, and metadata only for binaries', async () 
 test('every request carried the bearer token (file download excluded)', () => {
   for (const r of requests.filter((r) => r.key.includes('/api/v1/'))) assert.equal(r.auth, 'Bearer tok');
   assert.equal(requests.find((r) => r.key === 'GET /dl/9').auth, undefined);
+});
+
+test('list_courses for completed enrollments also asks for completed courses', async () => {
+  await call('list_courses', { enrollment_state: 'completed' });
+  const q = decodeURIComponent(requests.filter((r) => r.key === 'GET /api/v1/courses').at(-1).query);
+  assert.match(q, /state\[\]=completed/);
 });
 
 test('API errors surface as readable isError results', async () => {

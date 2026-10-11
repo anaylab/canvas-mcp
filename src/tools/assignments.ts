@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getCanvasClient } from '../canvas-client.js';
+import { htmlToText } from './util.js';
 
 export function registerAssignmentTools(server: McpServer) {
   const client = getCanvasClient();
@@ -81,7 +82,7 @@ export function registerAssignmentTools(server: McpServer) {
         const result: Record<string, unknown> = {
           id: assignment.id,
           name: assignment.name,
-          description: assignment.description,
+          description: htmlToText(assignment.description),
           due_at: assignment.due_at,
           unlock_at: assignment.unlock_at,
           lock_at: assignment.lock_at,

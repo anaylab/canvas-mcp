@@ -37,6 +37,8 @@ const read = [
   ['get_grades', {}], ['get_todo', {}], ['list_calendar_events', { start_date: '2000-01-01', end_date: '2100-01-01' }],
   ['list_pages', { course_id: 101 }], ['get_page', { course_id: 101, page_url: 'late-policy' }],
   ['list_files', { course_id: 101 }], ['read_file', { file_id: 9001 }], ['list_quizzes', { course_id: 101 }],
+  ['get_quiz', { course_id: 101, quiz_id: 601 }],
+  ['get_planner_items', { start_date: '2000-01-01', end_date: '2100-01-01' }],
   ['list_inbox', {}], ['get_conversation', { conversation_id: 301 }],
 ];
 for (const [name, args] of read) test(`demo: ${name}`, async () => { assert.ok(await run(name, args)); });
@@ -52,4 +54,32 @@ test('demo data makes sense', async () => {
 test('demo: write tools succeed without storing anything', async () => {
   const r = await run('post_discussion_entry', { course_id: 101, topic_id: 701, message: 'hello' });
   assert.ok(r);
+});
+
+test('read_file extracts text from a PDF, or degrades gracefully when unpdf is unavailable', async () => {
+  const r = await run('read_file', { file_id: 9002 });
+  if (r.content) {
+    assert.match(r.content, /Dijkstra/);
+    assert.match(r.content, /priority queue/);
+  } else {
+    assert.match(r.note, /Node 22/);
+    assert.ok(r.download_url);
+  }
+});
+
+test('quiz and planner details look right', async () => {
+  assert.match((await run('get_quiz', { course_id: 101, quiz_id: 601 })).instructions, /cycle detection/);
+  const planner = await run('get_planner_items', { start_date: '2000-01-01', end_date: '2100-01-01' });
+  assert.ok(planner.some((i) => /Problem Set 4/.test(i.title) && i.submitted === false));
+});
+
+test('read tools return plain text, not HTML, and keep link targets', async () => {
+  const anns = JSON.stringify(await run('list_announcements', { course_ids: [101] }));
+  assert.doesNotMatch(anns, /<\/?(p|b|ul|li|h\d)>/);
+  assert.match(anns, /Prof\. Rivera/);
+  const topic = JSON.stringify(await run('get_discussion_entries', { course_id: 101, topic_id: 701 }));
+  assert.doesNotMatch(topic, /<\/?p>/);
+  assert.match(topic, /graph primer \(https:\/\/example\.com\/graphs\)/);
+  assert.doesNotMatch(JSON.stringify(await run('get_assignment', { course_id: 101, assignment_id: 1001 })), /<\/?p>/);
+  assert.doesNotMatch(JSON.stringify(await run('get_course', { course_id: 101 })), /<h2>|<\/p>/);
 });

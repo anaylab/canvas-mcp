@@ -1,10 +1,12 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getCanvasClient } from '../canvas-client.js';
-import { ok, fail, htmlToText } from './util.js';
+import { ok, fail, htmlToText, pdfToText } from './util.js';
 
 const TEXT_TYPES = /^(text\/|application\/(json|xml|x-yaml|javascript))/;
 const MAX_FILE_BYTES = 200_000;
+const MAX_PDF_BYTES = 15_000_000;
+const MAX_PDF_CHARS = 100_000;
 
 export function registerExtraTools(server: McpServer) {
   const client = getCanvasClient();
@@ -157,13 +159,27 @@ export function registerExtraTools(server: McpServer) {
 
   server.tool(
     'read_file',
-    `Read a text-based course file (txt, md, csv, json, html...) by id. Binary files such as PDFs are not extracted; for those this returns metadata and the download link. Output is capped at ${MAX_FILE_BYTES / 1000} KB.`,
+    `Read a course file by id: text files (txt, md, csv, json, html) and PDFs (text extraction, needs Node 22+). Other binary files return metadata and a download link. Output is capped at ${MAX_FILE_BYTES / 1000} KB of text (${MAX_PDF_CHARS / 1000}K characters for PDFs).`,
     { file_id: z.number().describe('File id from list_files') },
     async ({ file_id }) => {
       try {
         const file = await client.getFile(file_id);
         const contentType: string = file['content-type'] ?? '';
         const meta = { name: file.display_name, content_type: contentType, size_bytes: file.size };
+        if (contentType === 'application/pdf') {
+          if (file.size > MAX_PDF_BYTES) {
+            return ok({ ...meta, note: 'PDF is too large to read here; open the download_url.', download_url: file.url });
+          }
+          const { bytes } = await client.downloadFile(file.url, MAX_PDF_BYTES);
+          const text = await pdfToText(bytes);
+          if (text === null) {
+            return ok({ ...meta, note: 'PDF text extraction needs Node 22+ (optional dependency unpdf). Open the download_url instead.', download_url: file.url });
+          }
+          if (!text) {
+            return ok({ ...meta, note: 'No selectable text found (likely a scanned PDF).', download_url: file.url });
+          }
+          return ok({ ...meta, truncated: text.length > MAX_PDF_CHARS, content: text.slice(0, MAX_PDF_CHARS) });
+        }
         if (!TEXT_TYPES.test(contentType)) {
           return ok({ ...meta, note: 'Not a text file; open the download_url in a browser.', download_url: file.url });
         }
@@ -199,6 +215,65 @@ export function registerExtraTools(server: McpServer) {
         );
       } catch (error) {
         return fail('listing quizzes', error);
+      }
+    }
+  );
+
+  server.tool(
+    'get_quiz',
+    'Details for one quiz (instructions, time limit, attempts, due date). Does not start or take the quiz.',
+    {
+      course_id: z.number().describe('The Canvas course ID'),
+      quiz_id: z.number().describe('Quiz id from list_quizzes'),
+    },
+    async ({ course_id, quiz_id }) => {
+      try {
+        const q = await client.getQuiz(course_id, quiz_id);
+        return ok({
+          id: q.id,
+          title: q.title,
+          instructions: htmlToText(q.description),
+          quiz_type: q.quiz_type,
+          due_at: q.due_at,
+          unlock_at: q.unlock_at,
+          lock_at: q.lock_at,
+          points_possible: q.points_possible,
+          question_count: q.question_count,
+          time_limit_minutes: q.time_limit,
+          allowed_attempts: q.allowed_attempts,
+          scoring_policy: q.scoring_policy,
+          html_url: q.html_url,
+        });
+      } catch (error) {
+        return fail('getting quiz', error);
+      }
+    }
+  );
+
+  server.tool(
+    'get_planner_items',
+    'Your Canvas planner for a date range: assignments, quizzes, discussions and your own planner notes, with whether each is complete.',
+    {
+      start_date: z.string().describe('Start date, YYYY-MM-DD'),
+      end_date: z.string().describe('End date, YYYY-MM-DD'),
+    },
+    async ({ start_date, end_date }) => {
+      try {
+        const items = await client.listPlannerItems(start_date, end_date);
+        return ok(
+          items.map((i) => ({
+            type: i.plannable_type,
+            title: i.plannable?.title ?? i.plannable?.name,
+            course: i.context_name,
+            date: i.plannable_date,
+            points_possible: i.plannable?.points_possible,
+            submitted: i.submissions?.submitted,
+            marked_complete: i.planner_override?.marked_complete ?? false,
+            html_url: i.html_url,
+          }))
+        );
+      } catch (error) {
+        return fail('getting planner items', error);
       }
     }
   );
