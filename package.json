@@ -9,7 +9,8 @@
     "start": "node dist/index.js",
     "start:http": "node dist/http.js",
     "dev": "tsc --watch",
-    "test": "npm run build && node --test test/*.test.mjs"
+    "test": "npm run build && node --test test/*.test.mjs",
+    "demo": "npm run build && node dist/demo/index.js"
   },
   "keywords": [
     "mcp",
@@ -22,7 +23,7 @@
     "assignments",
     "model-context-protocol"
   ],
-  "author": "",
+  "author": "anaylab",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -41,5 +42,14 @@
   "devDependencies": {
     "@types/node": "^20.11.0",
     "typescript": "^5.3.3"
-  }
+  },
+  "bin": {
+    "canvas-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    ".env.example"
+  ]
 }

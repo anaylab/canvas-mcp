@@ -24,3 +24,21 @@ test('stdio server lists tools with correct read/write annotations', async () =>
     await client.close();
   }
 });
+
+test('prompts are exposed and render', async () => {
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: ['dist/index.js'],
+    env: { ...process.env, CANVAS_API_TOKEN: 'x', CANVAS_BASE_URL: 'https://school.test' },
+  });
+  const client = new Client({ name: 'test', version: '0' });
+  await client.connect(transport);
+  try {
+    const { prompts } = await client.listPrompts();
+    assert.deepEqual(prompts.map((p) => p.name).sort(), ['assignment_brief', 'catch_up', 'grade_check', 'weekly_plan', 'whats_due']);
+    const r = await client.getPrompt({ name: 'weekly_plan', arguments: { days: '3' } });
+    assert.match(r.messages[0].content.text, /next 3 days/);
+  } finally {
+    await client.close();
+  }
+});
