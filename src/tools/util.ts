@@ -31,3 +31,20 @@ export function htmlToText(html: string | null | undefined): string {
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
+
+/**
+ * Extract text from a PDF. `unpdf` is an optional dependency (needs Node 22+),
+ * so a missing module yields null and callers fall back to a download link.
+ */
+export async function pdfToText(bytes: Uint8Array): Promise<string | null> {
+  if (Number(process.versions.node.split('.')[0]) < 22) return null;
+  let mod: typeof import('unpdf');
+  try {
+    mod = await import('unpdf');
+  } catch {
+    return null;
+  }
+  const pdf = await mod.getDocumentProxy(new Uint8Array(bytes));
+  const { text } = await mod.extractText(pdf, { mergePages: true });
+  return text.trim();
+}

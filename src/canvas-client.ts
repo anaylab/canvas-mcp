@@ -20,6 +20,7 @@ import type {
 const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_RETRIES = 3;
 const MAX_PAGES = 50;
+const DEFAULT_CACHE_TTL_SECONDS = 60;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -70,15 +71,31 @@ export function describeApiError(status: number, statusText: string, body: strin
 interface CanvasClientConfig {
   baseUrl: string;
   apiToken: string;
+  /** 0 disables caching. Defaults to 60. */
+  cacheTtlSeconds?: number;
 }
 
 export class CanvasClient {
   private baseUrl: string;
   private apiToken: string;
+  private cacheTtlMs: number;
+  private cache = new Map<string, { at: number; value: unknown }>();
 
   constructor(config: CanvasClientConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, ''); // Remove trailing slash
     this.apiToken = config.apiToken;
+    this.cacheTtlMs = (config.cacheTtlSeconds ?? DEFAULT_CACHE_TTL_SECONDS) * 1000;
+  }
+
+  /** Short-lived GET cache so repeated questions don't re-hit Canvas. Any write clears it. */
+  private async cached<T>(key: string, load: () => Promise<T>): Promise<T> {
+    if (this.cacheTtlMs <= 0) return load();
+    const hit = this.cache.get(key);
+    if (hit && Date.now() - hit.at < this.cacheTtlMs) return hit.value as T;
+    const value = await load();
+    this.cache.set(key, { at: Date.now(), value });
+    if (this.cache.size > 200) this.cache.delete(this.cache.keys().next().value as string);
+    return value;
   }
 
   private authHeaders(extra: HeadersInit = {}): HeadersInit {
@@ -129,19 +146,28 @@ export class CanvasClient {
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseUrl}/api/v1${endpoint}`;
-    const response = await this.fetchWithRetry(url, {
-      ...options,
-      headers: this.authHeaders(options.headers),
-    });
-    if (!response.ok) await this.throwApiError(response);
-    return response.json() as Promise<T>;
+    const load = async (): Promise<T> => {
+      const response = await this.fetchWithRetry(url, {
+        ...options,
+        headers: this.authHeaders(options.headers),
+      });
+      if (!response.ok) await this.throwApiError(response);
+      return response.json() as Promise<T>;
+    };
+    if (isIdempotent(options.method)) return this.cached(url, load);
+    this.cache.clear(); // a write may change anything we have cached
+    return load();
   }
 
   private parseLinkNext(linkHeader: string | null): string | null {
     return parseLinkNext(linkHeader);
   }
 
-  private async requestAllPages<T>(
+  private requestAllPages<T>(endpoint: string, params: object = {}): Promise<T[]> {
+    return this.cached(`ALL ${endpoint} ${JSON.stringify(params)}`, () => this.fetchAllPages<T>(endpoint, params));
+  }
+
+  private async fetchAllPages<T>(
     endpoint: string,
     params: object = {}
   ): Promise<T[]> {
@@ -561,6 +587,14 @@ export class CanvasClient {
       : { bytes: buffer, truncated: false };
   }
 
+  async getQuiz(courseId: number, quizId: number): Promise<Record<string, any>> {
+    return this.request(`/courses/${courseId}/quizzes/${quizId}`);
+  }
+
+  async listPlannerItems(startDate: string, endDate: string): Promise<Record<string, any>[]> {
+    return this.requestAllPages('/planner/items', { start_date: startDate, end_date: endDate });
+  }
+
   async listQuizzes(courseId: number): Promise<Record<string, any>[]> {
     return this.requestAllPages(`/courses/${courseId}/quizzes`);
   }
@@ -595,7 +629,12 @@ export function getCanvasClient(): CanvasClient {
       );
     }
 
-    clientInstance = new CanvasClient({ baseUrl, apiToken });
+    const ttl = process.env.CANVAS_CACHE_TTL_SECONDS;
+    clientInstance = new CanvasClient({
+      baseUrl,
+      apiToken,
+      cacheTtlSeconds: ttl !== undefined && ttl !== '' && Number.isFinite(Number(ttl)) ? Number(ttl) : undefined,
+    });
   }
 
   return clientInstance;

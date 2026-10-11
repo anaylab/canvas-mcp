@@ -1,6 +1,6 @@
 {
-  "name": "canvas-mcp",
-  "version": "1.1.0",
+  "name": "@anaylab/canvas-mcp",
+  "version": "1.2.0",
   "description": "MCP server that connects Claude to Canvas LMS - manage coursework through natural conversation",
   "main": "dist/index.js",
   "type": "module",
@@ -10,7 +10,8 @@
     "start:http": "node dist/http.js",
     "dev": "tsc --watch",
     "test": "npm run build && node --test test/*.test.mjs",
-    "demo": "npm run build && node dist/demo/index.js"
+    "demo": "npm run build && node dist/demo/index.js",
+    "prepublishOnly": "npm test"
   },
   "keywords": [
     "mcp",
@@ -51,5 +52,15 @@
     "README.md",
     "LICENSE",
     ".env.example"
-  ]
+  ],
+  "optionalDependencies": {
+    "unpdf": "^1.8.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "homepage": "https://anaylab.github.io/canvas-mcp/",
+  "bugs": {
+    "url": "https://github.com/anaylab/canvas-mcp/issues"
+  }
 }

@@ -69,3 +69,19 @@ test('never retries a POST on 5xx (avoids double-submitting)', async () => {
   await assert.rejects(c.postDiscussionEntry(1, 2, 'hi'), /503/);
   assert.equal(calls, 1);
 });
+
+test('caches repeat GETs, can be disabled, and clears on writes', async () => {
+  let calls = 0;
+  globalThis.fetch = async (url, init) => { calls++; return json(init?.method === 'POST' ? { id: 1 } : [{ id: 1 }]); };
+  const c = new CanvasClient({ baseUrl: 'https://school.test', apiToken: 't', cacheTtlSeconds: 60 });
+  await c.listCourses(); await c.listCourses();
+  assert.equal(calls, 1, 'second identical list should be served from cache');
+  await c.postDiscussionEntry(1, 2, 'hi'); // write
+  await c.listCourses();
+  assert.equal(calls, 3, 'cache must be cleared by a write');
+
+  calls = 0;
+  const off = new CanvasClient({ baseUrl: 'https://school.test', apiToken: 't', cacheTtlSeconds: 0 });
+  await off.listCourses(); await off.listCourses();
+  assert.equal(calls, 2, 'ttl 0 disables caching');
+});

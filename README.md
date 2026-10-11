@@ -114,8 +114,8 @@ MCP clients that support prompts show these as ready-made starting points:
 | Courses | `list_courses`, `get_course` |
 | Grades and to-do | `get_grades`, `get_todo` |
 | Assignments | `list_assignments`, `get_assignment`, `get_rubric` |
-| Deadlines and search | `find_assignments_by_due_date`, `get_upcoming_assignments`, `get_overdue_assignments`, `get_all_upcoming_work`, `search_course_content`, `list_calendar_events` |
-| Course material | `list_modules`, `list_announcements`, `list_pages`, `get_page`, `list_files`, `read_file`, `list_quizzes` |
+| Deadlines and search | `find_assignments_by_due_date`, `get_upcoming_assignments`, `get_overdue_assignments`, `get_all_upcoming_work`, `search_course_content`, `list_calendar_events`, `get_planner_items` |
+| Course material | `list_modules`, `list_announcements`, `list_pages`, `get_page`, `list_files`, `read_file`, `list_quizzes`, `get_quiz` |
 | Discussions | `list_discussions`, `get_discussion_entries`, `post_discussion_entry`, `reply_to_discussion` |
 | Inbox | `list_inbox`, `get_conversation` |
 | Submissions | `get_submission`, `submit_assignment`, `upload_file` |
@@ -124,7 +124,7 @@ Every tool carries MCP `readOnlyHint` / write annotations, so clients can auto-a
 
 **Writes:** `post_discussion_entry`, `reply_to_discussion`, `submit_assignment` and `upload_file` change data in Canvas as you. `upload_file` does **not** submit by default (`submit_after_upload: false`). Review what your assistant is about to do before approving those calls, and follow your school's academic integrity policy.
 
-**Reliability:** all list endpoints follow Canvas pagination, requests time out after 30 s, and 429/5xx responses are retried with backoff (writes are never retried on 5xx, to avoid double-posting).
+**Reliability:** all list endpoints follow Canvas pagination, requests time out after 30 s, and 429/5xx responses are retried with backoff (writes are never retried on 5xx, to avoid double-posting). Read responses are cached for 60 s (`CANVAS_CACHE_TTL_SECONDS`, `0` disables) and any write clears the cache.
 
 ## How it works
 
@@ -145,7 +145,8 @@ Your token stays on your machine (in the client config) and is only ever sent to
 | `403` on a tool | Your school or the course disabled that feature (for example the inbox or files) |
 | No "New Access Token" button | Your school disabled student tokens; ask your Canvas admin |
 | Tools don't appear in Claude Desktop | Use an absolute path to `dist/index.js`, run `npm run build`, then fully restart the app |
-| `read_file` says "Not a text file" | Only text-based files are read; PDFs and slides return a download link instead |
+| `read_file` says "Not a text file" or "needs Node 22+" | Text files and PDFs are read (PDF text needs Node 22+; scanned PDFs have no text). Other binaries like slides return a download link |
+| Data looks stale | Responses are cached for 60 s. Set `CANVAS_CACHE_TTL_SECONDS=0` to disable, or ask again in a minute |
 
 ## HTTP mode (experimental)
 
@@ -180,9 +181,8 @@ The test suite runs every tool against the demo data, so adding a tool means add
 ## Roadmap
 
 - OAuth for HTTP mode, so hosted connector UIs work
-- Short-lived caching for course lists and grades
-- PDF and slide text extraction for `read_file`
-- Planner items and quiz details
+- Slide (PPTX) text extraction for `read_file`
+- Instructor-side tools (grading queue, rubrics) behind an explicit opt-in
 
 Ideas and PRs welcome.
 

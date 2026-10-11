@@ -14,6 +14,26 @@ const at = (days: number, hour = 23, minute = 59) => {
 
 export const DEMO_TOKEN = 'demo-token';
 
+/** Build a minimal single-page PDF with real, selectable text (latin1-safe). */
+export function minimalPdf(lines: string[]): string {
+  const esc = (t: string) => t.replace(/[\\()]/g, '\\$&');
+  const stream = `BT /F1 14 Tf 72 720 Td 18 TL ${lines.map((l) => `(${esc(l)}) Tj T*`).join(' ')} ET`;
+  const objs = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  let out = '%PDF-1.4\n';
+  const offsets: number[] = [];
+  objs.forEach((o, i) => { offsets.push(out.length); out += `${i + 1} 0 obj\n${o}\nendobj\n`; });
+  const xref = out.length;
+  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n${offsets.map((o) => `${String(o).padStart(10, '0')} 00000 n \n`).join('')}`;
+  out += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  return out;
+}
+
 function buildData(base: string) {
   const courses = [
     { id: 101, name: 'Algorithms and Data Structures', course_code: 'CS301', term: { name: 'Fall 2026' }, total_students: 84, start_at: at(-45), end_at: at(75), default_view: 'modules', syllabus_body: '<h2>CS301</h2><p>Weekly problem sets (40%), midterm (25%), final project (35%). Late work loses 10% per day.</p>' },
@@ -75,7 +95,7 @@ function buildData(base: string) {
     ],
     files: [
       { id: 9001, display_name: 'lecture-11-bfs-dfs.md', 'content-type': 'text/markdown', size: 420, updated_at: at(-5), url: `${base}/files/9001/download`, body: '# Lecture 11\n\nBFS explores level by level using a queue: O(V+E).\nDFS uses a stack/recursion: O(V+E).\n' },
-      { id: 9002, display_name: 'lecture-13-dijkstra.pdf', 'content-type': 'application/pdf', size: 90000, updated_at: at(-1), url: `${base}/files/9002/download`, body: '' },
+      { id: 9002, display_name: 'lecture-13-dijkstra.pdf', 'content-type': 'application/pdf', size: 600, updated_at: at(-1), url: `${base}/files/9002/download`, body: minimalPdf(['Lecture 13: Dijkstra', 'Greedy shortest paths with a priority queue.', 'Runs in O((V+E) log V). Requires non-negative edge weights.']) },
     ],
     quizzes: [
       { id: 601, title: 'Quiz 3: Graph Traversals', due_at: at(3), points_possible: 15, question_count: 10, time_limit: 20, allowed_attempts: 2, locked_for_user: false, html_url: `${base}/courses/101/quizzes/601` },
@@ -122,7 +142,7 @@ export function createFakeCanvas(): http.Server {
       const f = d.files.find((x) => x.id === Number(dl[1]));
       if (!f) return notFound();
       res.writeHead(200, { 'content-type': f['content-type'] });
-      return res.end(f.body);
+      return res.end(f['content-type'] === 'application/pdf' ? Buffer.from(f.body, 'latin1') : f.body);
     }
 
     if (req.headers.authorization !== `Bearer ${DEMO_TOKEN}`) {
@@ -177,6 +197,18 @@ export function createFakeCanvas(): http.Server {
       if ((x = m(/^\/api\/v1\/courses\/(\d+)\/files$/))) { const q = url.searchParams.get('search_term')?.toLowerCase(); return send(d.files.filter((f) => !q || f.display_name.toLowerCase().includes(q))); }
       if ((x = m(/^\/api\/v1\/files\/(\d+)$/))) { const f = d.files.find((f) => f.id === +x![1]); return f ? send(f) : notFound(); }
       if ((x = m(/^\/api\/v1\/courses\/(\d+)\/quizzes$/))) return send(+x[1] === 101 ? d.quizzes : []);
+      if ((x = m(/^\/api\/v1\/courses\/(\d+)\/quizzes\/(\d+)$/))) {
+        const q = d.quizzes.find((q) => q.id === +x![2]);
+        return q ? send({ ...q, description: '<p>Covers BFS, DFS and cycle detection. Open notes.</p>', quiz_type: 'assignment', scoring_policy: 'keep_highest', unlock_at: at(-1), lock_at: at(4) }) : notFound();
+      }
+      if (p === '/api/v1/planner/items') {
+        return send(d.assignments.filter((a) => a.due_at).map((a) => ({
+          plannable_type: 'assignment', plannable_date: a.due_at, context_name: course(a.course_id, d)?.name,
+          plannable: { title: a.name, points_possible: a.points_possible },
+          submissions: { submitted: a.submission.workflow_state !== 'unsubmitted' },
+          html_url: `${base}/courses/${a.course_id}/assignments/${a.id}`,
+        })));
+      }
       if (p === '/api/v1/conversations') return send(d.conversations);
       if ((x = m(/^\/api\/v1\/conversations\/(\d+)$/))) { const c = d.conversations.find((c) => c.id === +x![1]); return c ? send(c) : notFound(); }
       return notFound();
