@@ -73,3 +73,19 @@ test('refuses to start with a weak auth token, or an http:// non-local Canvas UR
   const insecure = await run({ MCP_AUTH_TOKEN: AUTH, CANVAS_BASE_URL: 'http://school.example.com' });
   assert.equal(insecure.code, 1); assert.match(insecure.err, /https/);
 });
+
+test('HTTP mode works when the runtime has no global crypto (Node 18)', async () => {
+  const port = 39000 + Math.floor(Math.random() * 500);
+  const s = startServer({
+    PORT: String(port), MCP_AUTH_TOKEN: AUTH, CANVAS_API_TOKEN: DEMO_TOKEN,
+    CANVAS_BASE_URL: `http://127.0.0.1:${canvas.address().port}`,
+    NODE_OPTIONS: `--import=${new URL('./helpers/no-global-crypto.mjs', import.meta.url).pathname}`,
+  });
+  try {
+    await s.ready;
+    const client = new Client({ name: 'n18', version: '0' });
+    await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`), { requestInit: { headers: { Authorization: `Bearer ${AUTH}` } } }));
+    assert.ok((await client.listTools()).tools.length >= 31);
+    await client.close();
+  } finally { s.c.kill(); }
+});
