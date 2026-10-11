@@ -89,11 +89,12 @@ export function registerSubmissionTools(server: McpServer) {
     {
       course_id: z.number().describe('The Canvas course ID'),
       assignment_id: z.number().describe('The assignment ID'),
-      submission_type: z.enum(['online_text_entry', 'online_url']).describe('Type of submission'),
+      submission_type: z.enum(['online_text_entry', 'online_url', 'online_upload']).describe('Type of submission'),
       body: z.string().optional().describe('Text content for online_text_entry submissions (supports HTML)'),
       url: z.string().optional().describe('URL for online_url submissions'),
+      file_ids: z.array(z.number()).optional().describe('File ids from upload_file, for online_upload submissions'),
     },
-    async ({ course_id, assignment_id, submission_type, body, url }) => {
+    async ({ course_id, assignment_id, submission_type, body, url, file_ids }) => {
       try {
         // Validate required fields based on submission type
         if (submission_type === 'online_text_entry' && !body) {
@@ -116,10 +117,21 @@ export function registerSubmissionTools(server: McpServer) {
           };
         }
 
+        if (submission_type === 'online_upload' && !file_ids?.length) {
+          return {
+            content: [{
+              type: 'text',
+              text: 'Error: file_ids is required for online_upload submissions (upload files first with upload_file)',
+            }],
+            isError: true,
+          };
+        }
+
         const submission = await client.submitAssignment(course_id, assignment_id, {
           submission_type,
           body,
           url,
+          file_ids,
         });
 
         return {
@@ -158,8 +170,8 @@ export function registerSubmissionTools(server: McpServer) {
       file_name: z.string().describe('Name of the file to upload'),
       file_content: z.string().describe('Base64 encoded file content'),
       content_type: z.string().describe('MIME type of the file (e.g., application/pdf, text/plain)'),
-      submit_after_upload: z.boolean().optional().default(true)
-        .describe('Automatically submit the assignment after uploading'),
+      submit_after_upload: z.boolean().optional().default(false)
+        .describe('Also submit the assignment with this file. Defaults to false so uploads are never submitted by surprise; submissions can be hard to retract.'),
     },
     async ({ course_id, assignment_id, file_name, file_content, content_type, submit_after_upload }) => {
       try {

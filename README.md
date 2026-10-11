@@ -57,13 +57,19 @@ Any other MCP client that supports stdio works the same way. You can also run `n
 | Area | Tools |
 | --- | --- |
 | Courses | `list_courses`, `get_course` |
+| Grades and to-do | `get_grades`, `get_todo` |
 | Assignments | `list_assignments`, `get_assignment`, `get_rubric` |
-| Deadlines and search | `find_assignments_by_due_date`, `get_upcoming_assignments`, `get_overdue_assignments`, `get_all_upcoming_work`, `search_course_content` |
-| Modules | `list_modules`, `list_announcements` |
+| Deadlines and search | `find_assignments_by_due_date`, `get_upcoming_assignments`, `get_overdue_assignments`, `get_all_upcoming_work`, `search_course_content`, `list_calendar_events` |
+| Course material | `list_modules`, `list_announcements`, `list_pages`, `get_page`, `list_files`, `read_file`, `list_quizzes` |
 | Discussions | `list_discussions`, `get_discussion_entries`, `post_discussion_entry`, `reply_to_discussion` |
+| Inbox | `list_inbox`, `get_conversation` |
 | Submissions | `get_submission`, `submit_assignment`, `upload_file` |
 
-**Note:** `post_discussion_entry`, `reply_to_discussion`, `submit_assignment` and `upload_file` change data in Canvas as you. Review what your assistant is about to do before approving those calls, and follow your school's academic integrity policy.
+Every tool carries MCP `readOnlyHint` / `destructiveHint` annotations, so clients can auto-approve reads and always ask before writes.
+
+**Writes:** `post_discussion_entry`, `reply_to_discussion`, `submit_assignment` and `upload_file` change data in Canvas as you. `upload_file` does **not** submit by default (`submit_after_upload: false`). Review what your assistant is about to do before approving those calls, and follow your school's academic integrity policy.
+
+**Reliability:** all list endpoints follow Canvas pagination, requests time out after 30 s, and 429/5xx responses are retried with backoff (writes are never retried on 5xx, to avoid double-posting).
 
 ## HTTP mode (experimental)
 
@@ -89,6 +95,7 @@ This mode is experimental. If you host it, you are exposing a service that holds
 ```bash
 npm run dev     # TypeScript watch mode
 npm run build   # compile to dist/
+npm test        # build + unit and end-to-end (stdio) tests
 ```
 
 ## License

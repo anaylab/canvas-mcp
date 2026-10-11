@@ -16,6 +16,57 @@ import type {
   SubmissionType,
 } from './types/canvas.js';
 
+
+const REQUEST_TIMEOUT_MS = 30_000;
+const MAX_RETRIES = 3;
+const MAX_PAGES = 50;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function isIdempotent(method?: string): boolean {
+  return !method || method.toUpperCase() === 'GET';
+}
+
+/** Exponential backoff with jitter; honours Retry-After (seconds) when present. */
+export function backoffMs(attempt: number, retryAfter: string | null): number {
+  const seconds = retryAfter ? Number(retryAfter) : NaN;
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.min(seconds * 1000, 30_000);
+  return Math.min(500 * 2 ** attempt, 8_000) + Math.floor(Math.random() * 250);
+}
+
+/** Link header format: <url>; rel="next", <url>; rel="last", ... */
+export function parseLinkNext(linkHeader: string | null): string | null {
+  if (!linkHeader) return null;
+  for (const part of linkHeader.split(',')) {
+    const match = part.match(/<([^>]+)>\s*;\s*rel="next"/);
+    if (match) return match[1];
+  }
+  return null;
+}
+
+/** Turn a Canvas error response into something a person (or model) can act on. */
+export function describeApiError(status: number, statusText: string, body: string): string {
+  let detail = body.trim();
+  try {
+    const parsed = JSON.parse(body);
+    const messages = Array.isArray(parsed?.errors)
+      ? parsed.errors.map((e: { message?: string }) => e?.message).filter(Boolean)
+      : [];
+    if (messages.length) detail = messages.join('; ');
+  } catch {
+    // body wasn't JSON; keep the raw text
+  }
+  if (detail.length > 300) detail = `${detail.slice(0, 300)}…`;
+
+  const hint =
+    status === 401 ? ' Your Canvas token is invalid or expired; create a new one in Account → Settings.'
+    : status === 403 ? ' Not permitted: the course may restrict this feature, or your role lacks access.'
+    : status === 404 ? ' Not found: check the course/assignment ID, or the item may be unpublished.'
+    : status === 429 ? ' Canvas rate limit hit; try again shortly.'
+    : '';
+  return `Canvas API error ${status} ${statusText}: ${detail}.${hint}`;
+}
+
 interface CanvasClientConfig {
   baseUrl: string;
   apiToken: string;
@@ -30,42 +81,64 @@ export class CanvasClient {
     this.apiToken = config.apiToken;
   }
 
+  private authHeaders(extra: HeadersInit = {}): HeadersInit {
+    return {
+      'Authorization': `Bearer ${this.apiToken}`,
+      'Content-Type': 'application/json',
+      ...extra,
+    };
+  }
+
+  /** fetch with timeout, and retry/backoff on 429 and 5xx. */
+  private async fetchWithRetry(url: string, options: RequestInit = {}): Promise<Response> {
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const response = await fetch(url, {
+          ...options,
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        });
+        const retryable = response.status === 429 || response.status >= 500;
+        // Only retry idempotent requests on 5xx; 429 means nothing was processed.
+        const safeToRetry = response.status === 429 || isIdempotent(options.method);
+        if (retryable && safeToRetry && attempt < MAX_RETRIES) {
+          await sleep(backoffMs(attempt, response.headers.get('retry-after')));
+          continue;
+        }
+        return response;
+      } catch (error) {
+        lastError = error;
+        if (attempt < MAX_RETRIES && isIdempotent(options.method)) {
+          await sleep(backoffMs(attempt, null));
+          continue;
+        }
+        break;
+      }
+    }
+    const reason = lastError instanceof Error ? lastError.message : String(lastError);
+    throw new Error(`Could not reach Canvas at ${this.baseUrl} (${reason})`);
+  }
+
+  private async throwApiError(response: Response): Promise<never> {
+    const body = await response.text();
+    throw new Error(describeApiError(response.status, response.statusText, body));
+  }
+
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseUrl}/api/v1${endpoint}`;
-    
-    const headers: HeadersInit = {
-      'Authorization': `Bearer ${this.apiToken}`,
-      'Content-Type': 'application/json',
-      ...options.headers,
-    };
-
-    const response = await fetch(url, {
+    const response = await this.fetchWithRetry(url, {
       ...options,
-      headers,
+      headers: this.authHeaders(options.headers),
     });
-
-    if (!response.ok) {
-      const errorBody = await response.text();
-      throw new Error(
-        `Canvas API error: ${response.status} ${response.statusText} - ${errorBody}`
-      );
-    }
-
+    if (!response.ok) await this.throwApiError(response);
     return response.json() as Promise<T>;
   }
 
   private parseLinkNext(linkHeader: string | null): string | null {
-    if (!linkHeader) return null;
-    // Link header format: <url>; rel="next", <url>; rel="last", ...
-    const parts = linkHeader.split(',');
-    for (const part of parts) {
-      const match = part.match(/<([^>]+)>\s*;\s*rel="next"/);
-      if (match) return match[1];
-    }
-    return null;
+    return parseLinkNext(linkHeader);
   }
 
   private async requestAllPages<T>(
@@ -76,22 +149,12 @@ export class CanvasClient {
     const initialQuery = this.buildQueryString(mergedParams);
     let url: string | null = `${this.baseUrl}/api/v1${endpoint}${initialQuery}`;
 
-    const headers: HeadersInit = {
-      'Authorization': `Bearer ${this.apiToken}`,
-      'Content-Type': 'application/json',
-    };
-
     const results: T[] = [];
+    let pages = 0;
 
-    while (url) {
-      const response: Response = await fetch(url, { headers });
-
-      if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(
-          `Canvas API error: ${response.status} ${response.statusText} - ${errorBody}`
-        );
-      }
+    while (url && pages++ < MAX_PAGES) {
+      const response: Response = await this.fetchWithRetry(url, { headers: this.authHeaders() });
+      if (!response.ok) await this.throwApiError(response);
 
       const page = (await response.json()) as T[];
       if (Array.isArray(page)) {
@@ -99,6 +162,8 @@ export class CanvasClient {
       }
 
       url = this.parseLinkNext(response.headers.get('link'));
+      // Never follow a pagination link off the configured Canvas host (token leak guard).
+      if (url && new URL(url).origin !== new URL(this.baseUrl).origin) break;
     }
 
     return results;
@@ -138,9 +203,9 @@ export class CanvasClient {
     courseId: number,
     params: ListAssignmentsParams = {}
   ): Promise<Assignment[]> {
-    const query = this.buildQueryString(params);
-    return this.request<Assignment[]>(
-      `/courses/${courseId}/assignments${query}`
+    return this.requestAllPages<Assignment>(
+      `/courses/${courseId}/assignments`,
+      params
     );
   }
 
@@ -254,6 +319,7 @@ export class CanvasClient {
     const response = await fetch(uploadUrl, {
       method: 'POST',
       body: formData,
+      signal: AbortSignal.timeout(120_000),
     });
 
     if (!response.ok) {
@@ -270,8 +336,7 @@ export class CanvasClient {
     courseId: number,
     params: ListModulesParams = {}
   ): Promise<Module[]> {
-    const query = this.buildQueryString(params);
-    return this.request<Module[]>(`/courses/${courseId}/modules${query}`);
+    return this.requestAllPages<Module>(`/courses/${courseId}/modules`, params);
   }
 
   async getModule(
@@ -290,9 +355,9 @@ export class CanvasClient {
     moduleId: number,
     include?: string[]
   ): Promise<ModuleItem[]> {
-    const query = include ? this.buildQueryString({ include }) : '';
-    return this.request<ModuleItem[]>(
-      `/courses/${courseId}/modules/${moduleId}/items${query}`
+    return this.requestAllPages<ModuleItem>(
+      `/courses/${courseId}/modules/${moduleId}/items`,
+      include ? { include } : {}
     );
   }
 
@@ -301,8 +366,7 @@ export class CanvasClient {
   async listAnnouncements(
     params: ListAnnouncementsParams
   ): Promise<Announcement[]> {
-    const query = this.buildQueryString(params);
-    return this.request<Announcement[]>(`/announcements${query}`);
+    return this.requestAllPages<Announcement>('/announcements', params);
   }
 
   // ==================== DISCUSSIONS ====================
@@ -311,9 +375,9 @@ export class CanvasClient {
     courseId: number,
     orderBy?: 'position' | 'recent_activity' | 'title'
   ): Promise<DiscussionTopic[]> {
-    const query = orderBy ? this.buildQueryString({ order_by: orderBy }) : '';
-    return this.request<DiscussionTopic[]>(
-      `/courses/${courseId}/discussion_topics${query}`
+    return this.requestAllPages<DiscussionTopic>(
+      `/courses/${courseId}/discussion_topics`,
+      orderBy ? { order_by: orderBy } : {}
     );
   }
 
@@ -330,7 +394,7 @@ export class CanvasClient {
     courseId: number,
     topicId: number
   ): Promise<DiscussionEntry[]> {
-    return this.request<DiscussionEntry[]>(
+    return this.requestAllPages<DiscussionEntry>(
       `/courses/${courseId}/discussion_topics/${topicId}/entries`
     );
   }
@@ -437,6 +501,77 @@ export class CanvasClient {
       const dueDate = new Date(a.due_at);
       return dueDate >= startDate && dueDate <= endDate;
     });
+  }
+
+  // ==================== GRADES / TODO / CALENDAR ====================
+
+  async listMyEnrollments(): Promise<Record<string, any>[]> {
+    return this.requestAllPages('/users/self/enrollments', {
+      state: ['active'],
+      type: ['StudentEnrollment'],
+    });
+  }
+
+  async listTodo(): Promise<Record<string, any>[]> {
+    return this.requestAllPages('/users/self/todo');
+  }
+
+  async listCalendarEvents(params: {
+    type?: 'event' | 'assignment';
+    start_date?: string;
+    end_date?: string;
+    context_codes?: string[];
+  }): Promise<Record<string, any>[]> {
+    return this.requestAllPages('/calendar_events', params);
+  }
+
+  // ==================== PAGES / FILES / QUIZZES / INBOX ====================
+
+  async listPages(courseId: number, searchTerm?: string): Promise<Record<string, any>[]> {
+    return this.requestAllPages(`/courses/${courseId}/pages`, {
+      sort: 'updated_at',
+      order: 'desc',
+      search_term: searchTerm,
+    });
+  }
+
+  async getPage(courseId: number, pageUrlOrId: string): Promise<Record<string, any>> {
+    return this.request(`/courses/${courseId}/pages/${encodeURIComponent(pageUrlOrId)}`);
+  }
+
+  async listFiles(courseId: number, searchTerm?: string): Promise<Record<string, any>[]> {
+    return this.requestAllPages(`/courses/${courseId}/files`, {
+      search_term: searchTerm,
+      sort: 'updated_at',
+      order: 'desc',
+    });
+  }
+
+  async getFile(fileId: number): Promise<Record<string, any>> {
+    return this.request(`/files/${fileId}`);
+  }
+
+  /** Download a file's bytes. The signed URL Canvas returns lives on a different host, so no auth header. */
+  async downloadFile(url: string, maxBytes: number): Promise<{ bytes: Uint8Array; truncated: boolean }> {
+    const response = await this.fetchWithRetry(url, {});
+    if (!response.ok) await this.throwApiError(response);
+    const buffer = new Uint8Array(await response.arrayBuffer());
+    return buffer.length > maxBytes
+      ? { bytes: buffer.slice(0, maxBytes), truncated: true }
+      : { bytes: buffer, truncated: false };
+  }
+
+  async listQuizzes(courseId: number): Promise<Record<string, any>[]> {
+    return this.requestAllPages(`/courses/${courseId}/quizzes`);
+  }
+
+  async listConversations(scope?: 'unread' | 'starred' | 'sent' | 'archived'): Promise<Record<string, any>[]> {
+    // Inbox can be huge; only fetch the first page.
+    return this.request(`/conversations${this.buildQueryString({ scope, per_page: 25 })}`);
+  }
+
+  async getConversation(conversationId: number): Promise<Record<string, any>> {
+    return this.request(`/conversations/${conversationId}`);
   }
 
   // ==================== USER INFO ====================
