@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getCanvasClient } from '../canvas-client.js';
+import { htmlToText } from './util.js';
 
 export function registerSubmissionTools(server: McpServer) {
   const client = getCanvasClient();
@@ -40,7 +41,7 @@ export function registerSubmissionTools(server: McpServer) {
           excused: submission.excused,
           points_deducted: submission.points_deducted,
           submission_type: submission.submission_type,
-          body: submission.body,
+          body: htmlToText(submission.body),
           url: submission.url,
           preview_url: submission.preview_url,
         };

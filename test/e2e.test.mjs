@@ -26,7 +26,7 @@ const routes = {
 before(async () => {
   server = http.createServer((req, res) => {
     const path = req.url.split('?')[0];
-    requests.push({ key: `${req.method} ${path}`, auth: req.headers.authorization });
+    requests.push({ key: `${req.method} ${path}`, auth: req.headers.authorization, query: req.url.split('?')[1] ?? '' });
     const h = routes[`${req.method} ${path}`];
     const out = h?.();
     if (out === undefined || out === null) {
@@ -83,6 +83,12 @@ test('read_file returns text content, and metadata only for binaries', async () 
 test('every request carried the bearer token (file download excluded)', () => {
   for (const r of requests.filter((r) => r.key.includes('/api/v1/'))) assert.equal(r.auth, 'Bearer tok');
   assert.equal(requests.find((r) => r.key === 'GET /dl/9').auth, undefined);
+});
+
+test('list_courses for completed enrollments also asks for completed courses', async () => {
+  await call('list_courses', { enrollment_state: 'completed' });
+  const q = decodeURIComponent(requests.filter((r) => r.key === 'GET /api/v1/courses').at(-1).query);
+  assert.match(q, /state\[\]=completed/);
 });
 
 test('API errors surface as readable isError results', async () => {

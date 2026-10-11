@@ -72,3 +72,14 @@ test('quiz and planner details look right', async () => {
   const planner = await run('get_planner_items', { start_date: '2000-01-01', end_date: '2100-01-01' });
   assert.ok(planner.some((i) => /Problem Set 4/.test(i.title) && i.submitted === false));
 });
+
+test('read tools return plain text, not HTML, and keep link targets', async () => {
+  const anns = JSON.stringify(await run('list_announcements', { course_ids: [101] }));
+  assert.doesNotMatch(anns, /<\/?(p|b|ul|li|h\d)>/);
+  assert.match(anns, /Prof\. Rivera/);
+  const topic = JSON.stringify(await run('get_discussion_entries', { course_id: 101, topic_id: 701 }));
+  assert.doesNotMatch(topic, /<\/?p>/);
+  assert.match(topic, /graph primer \(https:\/\/example\.com\/graphs\)/);
+  assert.doesNotMatch(JSON.stringify(await run('get_assignment', { course_id: 101, assignment_id: 1001 })), /<\/?p>/);
+  assert.doesNotMatch(JSON.stringify(await run('get_course', { course_id: 101 })), /<h2>|<\/p>/);
+});

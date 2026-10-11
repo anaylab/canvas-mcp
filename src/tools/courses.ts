@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getCanvasClient } from '../canvas-client.js';
+import { htmlToText } from './util.js';
 
 export function registerCourseTools(server: McpServer) {
   const client = getCanvasClient();
@@ -27,7 +28,8 @@ export function registerCourseTools(server: McpServer) {
           enrollment_type,
           enrollment_state,
           include: include as ('term' | 'total_students' | 'syllabus_body')[],
-          state: ['available'],
+          // Past courses live in the 'completed' state; don't filter them out when asked for.
+          state: enrollment_state === 'completed' ? ['available', 'completed'] : ['available'],
         });
 
         const formattedCourses = courses.map(course => ({
@@ -39,7 +41,7 @@ export function registerCourseTools(server: McpServer) {
           start_date: course.start_at,
           end_date: course.end_at,
           default_view: course.default_view,
-          syllabus: include_syllabus ? course.syllabus_body : undefined,
+          syllabus: include_syllabus ? htmlToText(course.syllabus_body) : undefined,
         }));
 
         return {
@@ -88,7 +90,7 @@ export function registerCourseTools(server: McpServer) {
           time_zone: course.time_zone,
           default_view: course.default_view,
           public_description: course.public_description,
-          syllabus: course.syllabus_body,
+          syllabus: htmlToText(course.syllabus_body),
         };
 
         return {

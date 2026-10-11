@@ -19,6 +19,10 @@ export function htmlToText(html: string | null | undefined): string {
   if (!html) return '';
   return html
     .replace(/<(script|style)[\s\S]*?<\/\1>/gi, '')
+    .replace(/<a\s[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_m, href: string, label: string) => {
+      const text = label.replace(/<[^>]+>/g, '').trim();
+      return !text || text === href || href.startsWith('#') || href.startsWith('javascript:') ? text : `${text} (${href})`;
+    })
     .replace(/<br\s*\/?>|<\/(p|div|li|h[1-6]|tr)>/gi, '\n')
     .replace(/<li[^>]*>/gi, '- ')
     .replace(/<[^>]+>/g, '')

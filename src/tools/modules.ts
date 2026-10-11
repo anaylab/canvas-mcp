@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getCanvasClient } from '../canvas-client.js';
+import { htmlToText } from './util.js';
 
 export function registerModuleTools(server: McpServer) {
   const client = getCanvasClient();
@@ -92,7 +93,7 @@ export function registerModuleTools(server: McpServer) {
         const formattedAnnouncements = announcements.map(ann => ({
           id: ann.id,
           title: ann.title,
-          message: ann.message,
+          message: htmlToText(ann.message),
           posted_at: ann.posted_at,
           author: ann.user_name,
           context_code: ann.context_code,

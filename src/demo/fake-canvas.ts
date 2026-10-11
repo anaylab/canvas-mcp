@@ -69,13 +69,13 @@ function buildData(base: string) {
   ];
 
   const announcements = [
-    { id: 501, title: 'Midterm logistics', message: '<p>The midterm is in Hall B. Bring a pencil and your student ID.</p>', posted_at: at(-1), context_code: 'course_101', author: { display_name: 'Prof. Rivera' } },
-    { id: 502, title: 'Office hours moved', message: '<p>Thursday office hours move to 3pm this week.</p>', posted_at: at(-4), context_code: 'course_101', author: { display_name: 'Prof. Rivera' } },
-    { id: 503, title: 'Reading response format', message: '<p>Use 12pt font, single-spaced.</p>', posted_at: at(-6), context_code: 'course_102', author: { display_name: 'Dr. Okafor' } },
+    { id: 501, title: 'Midterm logistics', message: '<p>The midterm is in Hall B. Bring a pencil and your student ID.</p>', posted_at: at(-1), context_code: 'course_101', user_name: 'Prof. Rivera' },
+    { id: 502, title: 'Office hours moved', message: '<p>Thursday office hours move to 3pm this week.</p>', posted_at: at(-4), context_code: 'course_101', user_name: 'Prof. Rivera' },
+    { id: 503, title: 'Reading response format', message: '<p>Use 12pt font, single-spaced.</p>', posted_at: at(-6), context_code: 'course_102', user_name: 'Dr. Okafor' },
   ];
 
   const topics = [
-    { id: 701, course_id: 101, title: 'Week 6 discussion: When is BFS better than DFS?', message: '<p>Share a concrete example.</p>', posted_at: at(-3), discussion_subentry_count: 2, unread_count: 1, published: true, author: { display_name: 'Prof. Rivera' } },
+    { id: 701, course_id: 101, title: 'Week 6 discussion: When is BFS better than DFS?', message: '<p>Share a concrete example. See the <a href="https://example.com/graphs">graph primer</a>.</p>', posted_at: at(-3), discussion_subentry_count: 2, unread_count: 1, published: true, user_name: 'Prof. Rivera' },
   ];
   const entries = [
     { id: 8001, user_id: 5, user_name: 'Maya Chen', message: '<p>BFS for shortest paths in unweighted graphs.</p>', created_at: at(-2), recent_replies: [] },
