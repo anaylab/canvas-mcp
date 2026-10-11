@@ -36,11 +36,18 @@ export function htmlToText(html: string | null | undefined): string {
  * Extract text from a PDF. `unpdf` is an optional dependency (needs Node 22+),
  * so a missing module yields null and callers fall back to a download link.
  */
+interface UnPdf {
+  getDocumentProxy(data: Uint8Array): Promise<unknown>;
+  extractText(pdf: unknown, options: { mergePages: true }): Promise<{ text: string }>;
+}
+
 export async function pdfToText(bytes: Uint8Array): Promise<string | null> {
   if (Number(process.versions.node.split('.')[0]) < 22) return null;
-  let mod: typeof import('unpdf');
+  let mod: UnPdf;
   try {
-    mod = await import('unpdf');
+    // Specifier in a variable: the module is optional, so it must not be resolved at compile time.
+    const name = 'unpdf';
+    mod = (await import(name)) as UnPdf;
   } catch {
     return null;
   }
