@@ -16,18 +16,20 @@
  */
 
 import express from 'express';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-import { registerCourseTools } from './tools/courses.js';
-import { registerAssignmentTools } from './tools/assignments.js';
-import { registerSubmissionTools } from './tools/submissions.js';
-import { registerModuleTools } from './tools/modules.js';
-import { registerDiscussionTools } from './tools/discussions.js';
-import { registerSearchTools } from './tools/search.js';
+import { buildServer } from './register.js';
+
+/** Constant-time compare so the token can't be recovered by timing. */
+function safeEqual(a: string, b: string): boolean {
+  const ha = createHash('sha256').update(a).digest();
+  const hb = createHash('sha256').update(b).digest();
+  return timingSafeEqual(ha, hb);
+}
 
 function validateEnvironment(): void {
   const requiredVars = ['CANVAS_API_TOKEN', 'CANVAS_BASE_URL', 'MCP_AUTH_TOKEN'];
@@ -38,29 +40,19 @@ function validateEnvironment(): void {
   }
 }
 
-function buildServer(): McpServer {
-  const server = new McpServer({ name: 'canvas-lms', version: '1.0.0' });
-  registerCourseTools(server);
-  registerAssignmentTools(server);
-  registerSubmissionTools(server);
-  registerModuleTools(server);
-  registerDiscussionTools(server);
-  registerSearchTools(server);
-  return server;
-}
-
 async function main(): Promise<void> {
   validateEnvironment();
 
   const app = express();
-  app.use(express.json());
+  app.disable('x-powered-by');
+  app.use(express.json({ limit: '10mb' }));
 
   const authToken = process.env.MCP_AUTH_TOKEN as string;
 
   app.post('/mcp', async (req, res) => {
     const auth = req.header('authorization') || '';
     const provided = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-    if (provided !== authToken) {
+    if (!safeEqual(provided, authToken)) {
       res.status(401).json({ error: 'unauthorized' });
       return;
     }
@@ -77,9 +69,21 @@ async function main(): Promise<void> {
       server.close();
     });
 
-    await server.connect(transport);
-    await transport.handleRequest(req, res, req.body);
+    try {
+      await server.connect(transport);
+      await transport.handleRequest(req, res, req.body);
+    } catch (error) {
+      console.error('MCP request failed:', error);
+      if (!res.headersSent) res.status(500).json({ error: 'internal error' });
+    }
   });
+
+  // Stateless mode has no SSE stream or session to tear down.
+  const methodNotAllowed: express.RequestHandler = (_req, res) => {
+    res.status(405).set('Allow', 'POST').json({ error: 'method not allowed' });
+  };
+  app.get('/mcp', methodNotAllowed);
+  app.delete('/mcp', methodNotAllowed);
 
   app.get('/health', (_req, res) => {
     res.json({ ok: true });

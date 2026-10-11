@@ -1,6 +1,6 @@
 {
   "name": "canvas-mcp",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "MCP server that connects Claude to Canvas LMS - manage coursework through natural conversation",
   "main": "dist/index.js",
   "type": "module",
@@ -8,7 +8,9 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "start:http": "node dist/http.js",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "demo": "npm run build && node dist/demo/index.js"
   },
   "keywords": [
     "mcp",
@@ -21,7 +23,7 @@
     "assignments",
     "model-context-protocol"
   ],
-  "author": "",
+  "author": "anaylab",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -40,5 +42,14 @@
   "devDependencies": {
     "@types/node": "^20.11.0",
     "typescript": "^5.3.3"
-  }
+  },
+  "bin": {
+    "canvas-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    ".env.example"
+  ]
 }
