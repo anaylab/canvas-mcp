@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>canvas-mcp: ask Claude about your coursework</title>
+<meta name="description" content="An open-source MCP server that connects Claude to Canvas LMS. Deadlines, grades, files and discussions in plain language. Local-first, with a no-account demo.">
+<style>
+:root{--bg:#faf9f7;--fg:#1f1d1a;--muted:#6b665f;--card:#fff;--line:#e8e4dd;--accent:#c96442;--code:#f1eee8}
+@media (prefers-color-scheme:dark){:root{--bg:#161412;--fg:#f3f0ea;--muted:#a39d93;--card:#1f1c19;--line:#2f2b26;--accent:#e07a56;--code:#252220}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+.wrap{max-width:960px;margin:0 auto;padding:0 16px}
+header{padding:56px 0 24px;text-align:center}
+.tag{display:inline-block;font-size:13px;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:2px 12px;margin-bottom:16px}
+h1{font-size:clamp(32px,6vw,52px);line-height:1.1;margin:0 0 16px;letter-spacing:-.02em}
+h1 em{font-style:normal;color:var(--accent)}
+.lead{font-size:19px;color:var(--muted);max-width:640px;margin:0 auto 28px}
+.btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn{display:inline-block;padding:10px 20px;border-radius:10px;text-decoration:none;font-weight:600;border:1px solid var(--line);color:var(--fg);background:var(--card)}
+.btn.p{background:var(--accent);border-color:var(--accent);color:#fff}
+.demo{margin:40px auto 8px;max-width:900px}.demo img{width:100%;height:auto;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.18)}
+section{padding:40px 0}
+h2{font-size:26px;margin:0 0 8px;letter-spacing:-.01em}
+.sub{color:var(--muted);margin:0 0 24px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+.card h3{margin:0 0 6px;font-size:17px}.card p{margin:0;color:var(--muted);font-size:15px}
+.steps{counter-reset:s;display:grid;gap:16px}
+.step{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 18px 18px 58px;position:relative}
+.step:before{counter-increment:s;content:counter(s);position:absolute;left:16px;top:16px;width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:700;font-size:14px}
+.step h3{margin:0 0 6px;font-size:17px}
+pre{margin:8px 0 0;background:var(--code);border-radius:10px;padding:12px 14px;overflow:auto;font:13.5px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;position:relative}
+.copy{position:absolute;top:8px;right:8px;font:12px inherit;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:6px;padding:2px 8px;cursor:pointer}
+.ask{display:flex;flex-wrap:wrap;gap:10px}
+.ask span{background:var(--card);border:1px solid var(--line);border-radius:99px;padding:6px 14px;font-size:15px}
+.tools{columns:2 260px;column-gap:24px;color:var(--muted);font:14px/1.9 ui-monospace,Menlo,monospace}
+.safe{border-left:4px solid var(--accent)}
+footer{padding:32px 0 56px;color:var(--muted);font-size:14px;text-align:center;border-top:1px solid var(--line)}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <span class="tag">Open source · MIT · Unofficial, not affiliated with Instructure or Anthropic</span>
+  <h1>Ask Claude about your <em>coursework</em></h1>
+  <p class="lead">canvas-mcp connects Claude to Canvas LMS. Deadlines, grades, readings and discussions, in plain language. It runs on your machine and your token never leaves it.</p>
+  <div class="btns">
+    <a class="btn p" href="#try">Try the demo, no account needed</a>
+    <a class="btn" href="https://github.com/anaylab/canvas-mcp">View on GitHub</a>
+  </div>
+  <div class="demo"><img src="demo.svg" alt="Animated demo: asking Claude what is due this week and getting a prioritised answer"></div>
+  <p class="sub" style="font-size:13px">Illustrative, built from the demo data that ships with the repo.</p>
+</header>
+
+<section>
+  <h2>What you can ask</h2>
+  <p class="sub">Claude picks the right tools; you just ask.</p>
+  <div class="ask">
+    <span>What's due this week?</span><span>What am I missing or overdue on?</span><span>How am I doing in each class?</span>
+    <span>What's the rubric for Problem Set 4?</span><span>Summarise the Week 6 lecture notes</span><span>What does the syllabus say about late work?</span>
+    <span>Any unread messages from my instructors?</span><span>Plan my week around my exams</span>
+  </div>
+</section>
+
+<section id="try">
+  <h2>Try it in about a minute</h2>
+  <p class="sub">Demo mode runs a fake Canvas with sample data, so there is nothing to sign up for.</p>
+  <div class="steps">
+    <div class="step"><h3>Get the code and start the demo</h3>
+      <pre><button class="copy">Copy</button>git clone https://github.com/anaylab/canvas-mcp.git
+cd canvas-mcp && npm install && npm run demo</pre></div>
+    <div class="step"><h3>Paste the printed config into Claude Desktop</h3>
+      <p class="sub" style="margin:0">Settings → Developer → Edit Config, then restart the app. The command prints the exact block for you.</p></div>
+    <div class="step"><h3>Ask away</h3>
+      <p class="sub" style="margin:0">"What's due this week?" or "How am I doing in my classes?" Ready-made prompts like <code>weekly_plan</code> and <code>catch_up</code> appear in clients that support them.</p></div>
+    <div class="step"><h3>Ready for the real thing?</h3>
+      <p class="sub" style="margin:0">Create a Canvas API token (Account → Settings → New Access Token), then point <code>CANVAS_BASE_URL</code> at your school. The README walks through it.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>Built to be safe to use</h2>
+  <div class="grid">
+    <div class="card safe"><h3>Local-first</h3><p>Runs on your computer over stdio. No hosted service, and your token is only sent to your own Canvas.</p></div>
+    <div class="card safe"><h3>Reads are free, writes are deliberate</h3><p>Every tool is marked read-only or write, so clients can ask before anything is posted or submitted.</p></div>
+    <div class="card safe"><h3>Never submits by surprise</h3><p>Uploading a file does not submit the assignment unless you ask. Writes are never auto-retried.</p></div>
+    <div class="card safe"><h3>Tested</h3><p>43 tests run every tool against realistic data, across Node 18, 20 and 22.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>29 tools</h2>
+  <p class="sub">Courses, assignments, rubrics, grades, calendar, pages, files, quizzes, discussions, inbox and submissions.</p>
+  <div class="tools">list_courses · get_course · list_assignments · get_assignment · get_rubric · get_grades · get_todo · get_submission · find_assignments_by_due_date · get_upcoming_assignments · get_overdue_assignments · get_all_upcoming_work · search_course_content · list_calendar_events · list_modules · list_announcements · list_pages · get_page · list_files · read_file · list_quizzes · list_discussions · get_discussion_entries · list_inbox · get_conversation · post_discussion_entry · reply_to_discussion · submit_assignment · upload_file</div>
+</section>
+
+<footer>
+  MIT licensed · <a href="https://github.com/anaylab/canvas-mcp">github.com/anaylab/canvas-mcp</a><br>
+  Follow your school's academic integrity policy. This tool helps you plan and understand; the work is yours.
+</footer>
+</div>
+<script>
+document.querySelectorAll('.copy').forEach(function(b){b.addEventListener('click',function(){
+  var t=b.parentElement.innerText.replace(/^Copy\n?/,'');
+  if(navigator.clipboard){navigator.clipboard.writeText(t).then(function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)}).catch(function(){})}
+})});
+</script>
+</body>
+</html>

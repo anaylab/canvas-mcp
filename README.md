@@ -8,19 +8,9 @@ Ask Claude about your coursework in plain language. **canvas-mcp** is an [MCP](h
 
 > **Unofficial.** Not affiliated with or endorsed by Instructure or Anthropic.
 
-```text
-You:    What's due this week, and what should I start first?
+<p align="center"><img src="docs/demo.svg" alt="Animated demo: asking Claude what is due this week; it calls canvas-mcp tools and answers with a prioritised list" width="820"></p>
 
-Claude: Three things, in order of urgency:
-        1. Reading Response 6 (ECON101), 10 pts, due tomorrow, a 500-word piece, so quick to start
-        2. Problem Set 4 (CS301), 30 pts, due in 3 days, worth the most and has a rubric
-           weighted toward correctness, so start here today
-        3. Essay 2 (ENGL210), 50 pts, due in 6 days. Outline it once PS4 is in.
-        PS3 from CS301 is also overdue by 3 days; the late policy page says 10% per day,
-        so submitting tonight still beats waiting.
-```
-
-<sub>Illustrative conversation using the built-in demo data below. Your results come from your own Canvas.</sub>
+<sub>Illustrative, built from the demo data below. Your answers come from your own Canvas.</sub>
 
 ## Try it in a minute, no Canvas account needed
 
