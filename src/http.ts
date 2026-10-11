@@ -17,11 +17,16 @@
  */
 
 import express from 'express';
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { createHash, timingSafeEqual, webcrypto } from 'node:crypto';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
+
+// Node 18 has no global `crypto`, which the SDK's HTTP transport uses at request time.
+if (!(globalThis as { crypto?: unknown }).crypto) {
+  (globalThis as { crypto?: unknown }).crypto = webcrypto;
+}
 
 import { buildServer } from './register.js';
 
